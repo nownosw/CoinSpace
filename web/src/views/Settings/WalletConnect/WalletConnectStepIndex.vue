@@ -1,6 +1,4 @@
 <script>
-import { errors } from '@coinspace/cs-common';
-
 import CsButton from '../../../components/CsButton.vue';
 import CsButtonGroup from '../../../components/CsButtonGroup.vue';
 import CsFormGroup from '../../../components/CsForm/CsFormGroup.vue';
@@ -27,10 +25,10 @@ export default {
   extends: CsStep,
   mixins: [onShowOnHide],
   async onShow() {
-    if (this.storage.temp) {
+    if (this.storage.uri) {
       this.error = undefined;
-      this.privateKey = this.storage.temp;
-      this.storage.temp = undefined;
+      this.uri = this.storage.uri;
+      this.storage.uri = undefined;
     }
     this.isQrScanAvailable = await isQrScanAvailable();
   },
@@ -39,52 +37,38 @@ export default {
       isLoading: false,
       isPasteAvailable: typeof navigator.clipboard?.readText === 'function',
       isQrScanAvailable: false,
-      privateKey: '',
+      uri: '',
       error: undefined,
     };
   },
   methods: {
-    async confirm() {
+    async connect() {
       this.isLoading = true;
       this.error = undefined;
-      const price = await this.$account.market.getPrice(this.$wallet.crypto._id, this.$currency);
-      this.updateStorage({
-        price,
-        address: 'your wallet',
-        privateKey: this.privateKey,
-      });
-
       try {
-        const amount = await this.$wallet.estimateImport({
-          privateKey: this.privateKey,
-          feeRate: this.storage.feeRate,
-          price: this.storage.priceUSD,
-        });
-        this.updateStorage({ amount });
-        this.next('confirm');
+        const walletConnect = await this.$account.walletConnect();
+        const proposal = await walletConnect.pair(this.uri);
+        const session = await walletConnect.approveSession(proposal);
+        this.updateStorage({ session });
+        this.next('main');
       } catch (err) {
-        if (err instanceof errors.SmallAmountError || err instanceof errors.MinimumReserveDestinationError) {
-          this.error = this.$t('Balance of private key is too small for transfer. Minimum is {amount} {symbol}', {
-            amount: err.amount,
-            symbol: this.$wallet.crypto.symbol,
-          });
+        if (err.message?.startsWith?.('Missing or invalid. pair() uri')) {
+          this.error = this.$t('Invalid URI');
           return;
         }
-        if (err instanceof errors.InvalidPrivateKeyError) {
-          this.error = this.$t('Invalid private key');
+        if (err.message?.includes?.('Please try again with a new connection URI')) {
+          this.error = this.$t('Please try again with a new connection URI');
           return;
         }
-        if (err instanceof errors.DestinationEqualsSourceError) {
-          this.error = this.$t('Destination address should not be equal source address');
+        if (err.message?.includes?.('Non conforming namespaces')) {
+          this.error = this.$t('Not supported');
           return;
         }
-        if (err instanceof errors.InsufficientCoinForTokenTransactionError) {
-          this.error = this.$t('Insufficient funds for token transaction. Required {amount} {symbol}', {
-            amount: err.amount,
-            symbol: this.$wallet.platform.symbol,
-          });
+        if (err.message?.includes?.('Not supported')) {
+          this.error = this.$t('Not supported');
           return;
         }
+        this.error = this.$t('Error! Please try again later.');
         console.error(err);
       } finally {
         this.isLoading = false;
@@ -94,7 +78,7 @@ export default {
       navigator.clipboard.readText()
         .then((text) => {
           this.error = undefined;
-          this.privateKey = text;
+          this.uri = text;
         }, () => {});
     },
   },
@@ -102,19 +86,15 @@ export default {
 </script>
 
 <template>
-  <MainLayout :title="$t('Transfer private key')">
-    <div class="&__info">
-      {{ $wallet.crypto.type === 'coin' ?
-        $t('This will transfer all coins from the private key address to your wallet.') :
-        $t('This will transfer all tokens from the private key address to your wallet.')
-      }}
-    </div>
+  <MainLayout
+    :title="$t('WalletConnect')"
+  >
     <CsFormGroup class="&__container">
       <CsFormInput
-        v-model="privateKey"
-        :label="$t('Private key')"
-        :clear="true"
+        v-model="uri"
+        :label="$t('WalletConnect URI')"
         :error="error"
+        :clear="true"
         @update:modelValue="error = undefined"
       />
 
@@ -144,14 +124,21 @@ export default {
         </CsButton>
       </CsButtonGroup>
     </CsFormGroup>
-
-    <CsButton
-      type="primary"
-      :isLoading="isLoading"
-      @click="confirm"
-    >
-      {{ $t('Continue') }}
-    </CsButton>
+    <CsButtonGroup class="&__buttons">
+      <CsButton
+        type="primary"
+        :isLoading="isLoading"
+        @click="connect"
+      >
+        {{ $t('Connect') }}
+      </CsButton>
+      <CsButton
+        type="primary-link"
+        @click="$safeOpen('https://support.coin.space/hc/en-us/articles/27563411040404')"
+      >
+        {{ $t('What is WalletConnect?') }}
+      </CsButton>
+    </CsButtonGroup>
   </MainLayout>
 </template>
 
@@ -159,12 +146,18 @@ export default {
   .#{ $filename } {
     $self: &;
 
-    &__info {
-      @include text-md;
-    }
-
     &__container {
       flex-grow: 1;
+    }
+
+    &__actions {
+      width: 100%;
+      max-width: 25rem;
+      align-self: center;
+    }
+
+    &__buttons {
+      flex-shrink: 0;
     }
   }
 </style>

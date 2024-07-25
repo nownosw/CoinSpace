@@ -47,6 +47,7 @@ export default {
   },
   watch: {
     passphrase(passphrase, passphraseOld) {
+      this.error = undefined;
       const passphraseDelta = Math.abs(passphrase.length - passphraseOld.length);
       if (passphraseDelta > 1) return this.suggestions = [];
 
@@ -66,6 +67,7 @@ export default {
   methods: {
     async confirm() {
       const passphrase = this.words.join(' ');
+      this.error = undefined;
       try {
         if (!validateMnemonic(passphrase, wordlist)) throw new Error();
         const seed = await mnemonicToSeed(passphrase);
@@ -75,13 +77,13 @@ export default {
             throw new Error();
           }
         }
-        this.error = undefined;
         this.$emit('confirm', seed);
       } catch (err) {
         this.error = this.$t('Invalid passphrase');
       }
     },
     acceptSuggestion(suggestion) {
+      this.error = undefined;
       this.passphrase = [
         ...this.words.slice(0, -1),
         suggestion + ' ',
@@ -97,7 +99,6 @@ export default {
     <CsFormTextarea
       ref="passphrase"
       v-model="passphrase"
-      class="&__passphrase"
       :label="$t('Passphrase')"
       :error="error"
     />

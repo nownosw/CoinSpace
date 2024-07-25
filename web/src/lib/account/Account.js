@@ -114,6 +114,12 @@ class WalletManager {
     this.#wallets.delete(id);
   }
 
+  getByChainId(chainId) {
+    return [...this.#wallets.values()].find((wallet) => {
+      return wallet.isWalletConnectSupported && wallet.chainId === chainId;
+    });
+  }
+
   filterByPlatform(platform) {
     return [...this.#wallets.values()].filter((wallet) => {
       return wallet.crypto.platform === platform;
@@ -158,6 +164,7 @@ export default class Account extends EventEmitter {
   #ramps;
   #exchange;
   #needToMigrateV5Balance = false;
+  #walletConnect;
 
   get clientStorage() {
     return this.#clientStorage;
@@ -300,8 +307,10 @@ export default class Account extends EventEmitter {
         return remote;
       } else if (local.type === 'token') {
         const token = this.#cryptoDB.getTokenByAddress(local.platform, local.address);
+        local.custom = true;
         return token ? token : local;
       } else {
+        local.custom = true;
         return local;
       }
     });
@@ -456,6 +465,7 @@ export default class Account extends EventEmitter {
         symbol: info.symbol,
         address,
         decimals: parseInt(info.decimals, 10),
+        custom: true,
       };
     } else {
       throw new errors.AddressError(`Invalid token address ${address}`);
@@ -473,6 +483,10 @@ export default class Account extends EventEmitter {
 
   tokensByPlatform(platform) {
     return this.#wallets.tokensByPlatform(platform);
+  }
+
+  walletByChainId(chainId) {
+    return this.#wallets.getByChainId(chainId);
   }
 
   async create(walletSeed, pin) {
@@ -762,5 +776,14 @@ export default class Account extends EventEmitter {
   toggleHiddenBalance() {
     this.#clientStorage.toggleHiddenBalance();
     this.emit('update', 'isHiddenBalance');
+  }
+
+  async walletConnect() {
+    if (!this.#walletConnect) {
+      this.#walletConnect = import('./WalletConnect.js').then(({ WalletConnect }) => {
+        return new WalletConnect({ account: this }).init();
+      });
+    }
+    return this.#walletConnect;
   }
 }

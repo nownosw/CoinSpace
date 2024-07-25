@@ -13,6 +13,12 @@ export default {
     SuccessTickIcon,
   },
   props: {
+    transaction: {
+      type: Object,
+      default() {
+        return {};
+      },
+    },
     status: {
       type: Boolean,
       default: true,
@@ -33,8 +39,15 @@ export default {
       type: String,
       default: undefined,
     },
+    onDone: {
+      type: Function,
+      default: undefined,
+    },
   },
   computed: {
+    crypto() {
+      return this.transaction?.crypto || this.$wallet?.crypto;
+    },
     internalTitle() {
       return this.title || this.$t('Confirm transaction');
     },
@@ -56,7 +69,7 @@ export default {
         return this.$t('Your transaction will appear in your history tab shortly.');
       } else {
         return this.$t('{name} node error. Please try again later.', {
-          name: this.$wallet.crypto.name,
+          name: this.crypto.name,
         });
       }
     },
@@ -73,14 +86,21 @@ export default {
   },
   methods: {
     done() {
-      this.$router.up();
+      if (this.onDone) {
+        this.onDone();
+      } else {
+        this.$router.up();
+      }
     },
   },
 };
 </script>
 
 <template>
-  <MainLayout :title="internalTitle">
+  <MainLayout
+    :title="internalTitle"
+    @back="onDone"
+  >
     <div
       class="&__icon"
       :class="{ '&__icon--success': status, '&__icon--failed': !status, }"

@@ -45,6 +45,7 @@ export default {
       this.error = this.$t('Invalid address');
     }
     if (this.storage.temp?.address) {
+      this.error = undefined;
       this.addressOrAlias = this.storage.temp.address;
       this.storage.temp.address = undefined;
     }
@@ -86,16 +87,15 @@ export default {
       } else {
         this.address = value;
       }
-      this.error = undefined;
     }, 300),
   },
   methods: {
     async confirm() {
       this.isLoading = true;
+      this.error = undefined;
       try {
         await this.$wallet.validateAddress({ address: this.address || '' });
         if (this.$wallet.isFeeRatesSupported) await this.$wallet.loadFeeRates();
-        this.error = undefined;
         this.updateStorage({
           // cache price for all steps
           price: await this.$account.market.getPrice(this.$wallet.crypto._id, this.$currency),
@@ -143,6 +143,7 @@ export default {
     paste() {
       navigator.clipboard.readText()
         .then((text) => {
+          this.error = undefined;
           this.addressOrAlias = text;
         }, () => {});
     },
@@ -161,6 +162,7 @@ export default {
         :label="$t('Wallet address')"
         :error="error"
         :clear="true"
+        @update:modelValue="error = undefined"
       />
 
       <CsButtonGroup
